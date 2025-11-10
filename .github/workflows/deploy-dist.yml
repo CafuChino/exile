@@ -1,0 +1,68 @@
+name: Deploy dist via SCP
+
+on:
+  push:
+    branches:
+      - master
+      - 'feat/**'
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    # Skip this job when a push's HEAD commit message contains 'WIP' (case-insensitive).
+    # Note: GitHub expressions don't support toLower(), so check common capitalizations and guard when head_commit is missing.
+    # Allow manual runs (workflow_dispatch) to always execute.
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.event.head_commit == null || !(contains(github.event.head_commit.message, 'WIP') || contains(github.event.head_commit.message, 'wip') || contains(github.event.head_commit.message, '[WIP]') || contains(github.event.head_commit.message, '[wip]')))) }}
+    runs-on: ubuntu-latest
+    # Use the 'deploy' environment (environment-level secrets and protections apply)
+    environment: deploy
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js (for build)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build --if-present
+
+      - name: Setup SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          # write private key securely (preserve newlines)
+          printf '%s' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          # Add host to known_hosts to avoid prompt
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Create remote directory and upload dist via scp
+        env:
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          # use short commit hash (7 chars)
+          SHORT=${GIT_SHA:0:7}
+          # ensure no trailing slash on DEPLOY_PATH
+          BASE=${DEPLOY_PATH%/}
+          REMOTE_DIR="$BASE/$SHORT"
+          echo "Creating remote directory: $REMOTE_DIR"
+          ssh -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '$REMOTE_DIR'"
+
+          echo "Uploading dist to ${DEPLOY_USER}@${DEPLOY_HOST}:$REMOTE_DIR"
+          # If dist contains hidden files, use a tar over ssh to preserve them; otherwise scp -r is fine.
+          if [ -d dist ]; then
+            scp -r dist/* "${DEPLOY_USER}@${DEPLOY_HOST}:$REMOTE_DIR/"
+          else
+            echo "No dist directory found, skipping upload"
+            exit 1
+          fi
