@@ -1,13 +1,3 @@
-import Vue, { VNode } from 'vue'
-
-declare global {
-  namespace JSX {
-    // tslint:disable no-empty-interface
-    interface Element extends VNode {}
-    // tslint:disable no-empty-interface
-    interface ElementClass extends Vue {}
-    interface IntrinsicElements {
-      [elem: string]: any;
-    }
-  }
-}
+// shims-tsx removed/disabled to avoid duplicate JSX IntrinsicElements with Vue types
+// Keep file to satisfy tooling that expects a shims-tsx.d.ts, but export nothing.
+export {}
