@@ -5,11 +5,14 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "serve:dist": "node serve-dist.js"
   },
   "dependencies": {
     "babel": "^6.23.0",
     "core-js": "^3.6.4",
+    "express": "^4.18.2",
+    "http-proxy-middleware": "^2.0.6",
     "js-cookie": "^2.2.1",
     "lodash": "^4.17.19",
     "moment": "^2.24.0",
