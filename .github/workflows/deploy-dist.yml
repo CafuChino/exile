@@ -30,39 +30,24 @@ jobs:
           npm ci
           npm run build --if-present
 
-      - name: Setup SSH
+      - name: Compute remote directory
+        id: set_remote_dir
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          # write private key securely (preserve newlines)
-          printf '%s' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          # Add host to known_hosts to avoid prompt
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-
-      - name: Create remote directory and upload dist via scp
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
           GIT_SHA: ${{ github.sha }}
         run: |
-          # use short commit hash (7 chars)
+          set -euo pipefail
           SHORT=${GIT_SHA:0:7}
-          # ensure no trailing slash on DEPLOY_PATH
           BASE=${DEPLOY_PATH%/}
           REMOTE_DIR="$BASE/$SHORT"
-          echo "Creating remote directory: $REMOTE_DIR"
-          ssh -o StrictHostKeyChecking=yes "${DEPLOY_USER}@${DEPLOY_HOST}" "mkdir -p '$REMOTE_DIR'"
+          echo "remote_dir=$REMOTE_DIR" >> "$GITHUB_OUTPUT"
 
-          echo "Uploading dist to ${DEPLOY_USER}@${DEPLOY_HOST}:$REMOTE_DIR"
-          # If dist contains hidden files, use a tar over ssh to preserve them; otherwise scp -r is fine.
-          if [ -d dist ]; then
-            scp -r dist/* "${DEPLOY_USER}@${DEPLOY_HOST}:$REMOTE_DIR/"
-          else
-            echo "No dist directory found, skipping upload"
-            exit 1
-          fi
+      - name: Upload dist via scp action
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: "dist/"
+          target: ${{ steps.set_remote_dir.outputs.remote_dir }}
