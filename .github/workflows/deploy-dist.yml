@@ -42,12 +42,24 @@ jobs:
           REMOTE_DIR="$BASE/$SHORT"
           echo "remote_dir=$REMOTE_DIR" >> "$GITHUB_OUTPUT"
 
-      - name: Upload dist via scp action
-        uses: appleboy/scp-action@v1
+      - name: Pack dist into tar.gz
+        id: pack_dist
+        env:
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ ! -d dist ]; then
+            echo "No dist directory found, skipping upload"
+            exit 1
+          fi
+          SHORT=${GIT_SHA:0:7}
+          FILENAME="dist-${SHORT}.tar.gz"
+          tar -czf "$FILENAME" -C dist .
+          echo "filename=$FILENAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dist via HTTP
+        uses: Kaven-Universe/github-action-http-upload-file@v1
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
-          source: "dist/"
-          target: ${{ steps.set_remote_dir.outputs.remote_dir }}
+          server: ${{ secrets.DEPLOY_URL }}
+          file: ${{ steps.pack_dist.outputs.filename }}
+          json_stringify_form_data: '[{"key":"path","value":"${{ steps.set_remote_dir.outputs.remote_dir }}"},{"key":"token","value":"${{ secrets.DEPLOY_TOKEN }}"}]'
