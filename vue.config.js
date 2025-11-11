@@ -6,6 +6,10 @@ module.exports = {
       }
     }
   },
+  transpileDependencies: [
+    /node_modules[\\/]@sentry/,
+    /node_modules[\\/]@sentry-internal/
+  ],
   devServer: {
     proxy: {
       "/api": {
