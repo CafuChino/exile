@@ -354,11 +354,24 @@ export default {
   },
   methods: {
     async getData() {
-      const res = await this.$axios.get("/api/statistics/full");
-      this.userList = res.data.user.slice(0, 4);
-      this.articleList = res.data.article.slice(0, 4);
-      this.cpList = res.data.cp;
-      this.fandomList = res.data.fandom.slice(0, 8);
+      try {
+        const res = await this.$axios.get("/api/statistics/full");
+        const data = res && res.data ? res.data : {};
+
+        // Defensive defaults in case API shape changes or response is empty
+        this.userList = Array.isArray(data.user) ? data.user.slice(0, 4) : [];
+        this.articleList = Array.isArray(data.article) ? data.article.slice(0, 4) : [];
+        this.cpList = Array.isArray(data.cp) ? data.cp : (data.cp || []);
+        this.fandomList = Array.isArray(data.fandom) ? data.fandom.slice(0, 8) : [];
+      } catch (e) {
+        // Log and keep UI stable
+        // eslint-disable-next-line no-console
+        console.error('getData failed', e);
+        this.userList = [];
+        this.articleList = [];
+        this.cpList = [];
+        this.fandomList = [];
+      }
     },
     filterText(text) {
       const preg = /<("[^"]*"|'[^']*'|[^'">])*>/gm;
